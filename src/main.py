@@ -1,7 +1,19 @@
 """Main application entry point"""
 
+import sys
+import os
 import cv2
 import time
+
+# Fix imports for PyInstaller
+if getattr(sys, 'frozen', False):
+    # Running as compiled executable
+    application_path = sys._MEIPASS
+    sys.path.insert(0, os.path.join(application_path, 'src'))
+else:
+    # Running as script
+    application_path = os.path.dirname(os.path.abspath(__file__))
+
 from camera import Camera
 from hand_tracker import HandTracker
 from gesture_detector import GestureDetector
