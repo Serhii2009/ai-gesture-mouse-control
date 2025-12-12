@@ -10,7 +10,6 @@ import config
 
 
 def main():
-    # Initialize components
     camera = Camera(
         config.CAMERA_INDEX,
         config.CAMERA_WIDTH,
@@ -24,11 +23,7 @@ def main():
         config.MIN_TRACKING_CONFIDENCE
     )
     
-    gesture_detector = GestureDetector(
-        config.PINCH_THRESHOLD,
-        config.PINCH_HOLD_FRAMES,
-        config.DOUBLE_CLICK_HOLD_TIME
-    )
+    gesture_detector = GestureDetector()
     
     mouse_controller = MouseController(
         config.SMOOTHING_FACTOR,
@@ -36,34 +31,85 @@ def main():
         config.SCREEN_PADDING
     )
     
-    # FPS calculation
     prev_time = 0
-    click_display_counter = 0
-    click_type_text = ""
-    scroll_display_counter = 0
-    scroll_direction_text = ""
+    action_display_counter = 0
+    action_text = ""
     
     print("Starting AI CV Gesture Mouse Control...")
-    print("Right hand index finger: Move mouse")
-    print("Left hand pinch: Single click (quick) or Double click (hold 2s)")
-    print("Right hand thumb + middle finger upper part: Scroll UP")
-    print("Right hand thumb + middle finger middle part: Scroll DOWN")
+    print("=== LEFT HAND GESTURES ===")
+    print("Thumb + Index (quick): Single Click")
+    print("Thumb + Middle: Double Click")
+    print("Thumb + Ring: Copy (Ctrl+C)")
+    print("Thumb + Pinky: Paste (Ctrl+V)")
+    print("")
+    print("=== RIGHT HAND GESTURES ===")
+    print("Index Finger: Move Cursor")
+    print("Thumb + Upper Middle Finger: Scroll Up")
+    print("Thumb + Middle Middle Finger: Scroll Down")
+    print("Thumb + Ring: Switch Desktop Left (Ctrl+Win+Left)")
+    print("Thumb + Pinky: Switch Desktop Right (Ctrl+Win+Right)")
+    print("")
+    print("=== DRAG MODE ===")
+    print("Left Index + Right Index: Start Drag (Mouse Down)")
+    print("Left Index + Right Thumb: End Drag (Mouse Up)")
+    print("")
     print("Press 'q' to quit")
     
     try:
         while True:
-            # Read frame
             success, frame = camera.read_frame()
             if not success:
                 break
             
-            # Process hand tracking
             results = hand_tracker.process_frame(frame)
             hands_data = hand_tracker.extract_hands_data(results, frame.shape)
             
-            # Right hand: Mouse movement and scrolling
+            # Drag mode detection (highest priority)
+            if hands_data['Left'] and hands_data['Right']:
+                if gesture_detector.detect_drag_start(
+                    hands_data['Left'],
+                    hands_data['Right'],
+                    config.DRAG_START_THRESHOLD
+                ):
+                    mouse_controller.mouse_down()
+                    gesture_detector.set_drag_active(True)
+                    action_display_counter = 20
+                    action_text = "DRAG ON"
+                    print("Drag mode activated!")
+                
+                if gesture_detector.detect_drag_end(
+                    hands_data['Left'],
+                    hands_data['Right'],
+                    config.DRAG_END_THRESHOLD
+                ):
+                    mouse_controller.mouse_up()
+                    gesture_detector.set_drag_active(False)
+                    action_display_counter = 20
+                    action_text = "DRAG OFF"
+                    print("Drag mode deactivated!")
+            
+            # Right hand gestures
             if hands_data['Right']:
-                # Check for scroll gesture
+                # Desktop switching
+                if gesture_detector.detect_desktop_switch_left(
+                    hands_data['Right'],
+                    config.DESKTOP_SWITCH_THRESHOLD
+                ):
+                    mouse_controller.switch_desktop_left()
+                    action_display_counter = 20
+                    action_text = "DESKTOP LEFT"
+                    print("Switch desktop left!")
+                
+                if gesture_detector.detect_desktop_switch_right(
+                    hands_data['Right'],
+                    config.DESKTOP_SWITCH_THRESHOLD
+                ):
+                    mouse_controller.switch_desktop_right()
+                    action_display_counter = 20
+                    action_text = "DESKTOP RIGHT"
+                    print("Switch desktop right!")
+                
+                # Scrolling
                 scroll_direction = gesture_detector.detect_scroll_gesture(
                     hands_data['Right'],
                     config.SCROLL_UP_THRESHOLD,
@@ -72,14 +118,15 @@ def main():
                 
                 if scroll_direction == "up":
                     mouse_controller.scroll_up(config.SCROLL_SPEED)
-                    scroll_display_counter = 5
-                    scroll_direction_text = "SCROLL UP"
+                    action_display_counter = 5
+                    action_text = "SCROLL UP"
                 elif scroll_direction == "down":
                     mouse_controller.scroll_down(config.SCROLL_SPEED)
-                    scroll_display_counter = 5
-                    scroll_direction_text = "SCROLL DOWN"
-                else:
-                    # Normal mouse movement when not scrolling
+                    action_display_counter = 5
+                    action_text = "SCROLL DOWN"
+                elif not gesture_detector.detect_desktop_switch_left(hands_data['Right'], config.DESKTOP_SWITCH_THRESHOLD) and \
+                     not gesture_detector.detect_desktop_switch_right(hands_data['Right'], config.DESKTOP_SWITCH_THRESHOLD):
+                    # Cursor movement when not scrolling or switching desktops
                     index_tip = gesture_detector.get_fingertip_position(hands_data['Right'], 8)
                     
                     if index_tip:
@@ -93,47 +140,83 @@ def main():
                         smooth_x, smooth_y = mouse_controller.smooth_movement(screen_x, screen_y)
                         mouse_controller.move_mouse(smooth_x, smooth_y)
             
-            # Left hand: Click gesture
+            # Left hand gestures
             if hands_data['Left']:
-                click_result = gesture_detector.detect_pinch_click(hands_data['Left'])
-                
-                if click_result == "single":
+                # Single click
+                if gesture_detector.detect_single_click(
+                    hands_data['Left'],
+                    config.SINGLE_CLICK_THRESHOLD,
+                    config.SINGLE_CLICK_MAX_TIME
+                ):
                     mouse_controller.click()
-                    click_display_counter = 20
-                    click_type_text = "SINGLE CLICK!"
-                    print("Single click detected!")
-                elif click_result == "double":
+                    action_display_counter = 20
+                    action_text = "SINGLE CLICK"
+                    print("Single click!")
+                
+                # Double click
+                if gesture_detector.detect_double_click(
+                    hands_data['Left'],
+                    config.DOUBLE_CLICK_THRESHOLD
+                ):
                     mouse_controller.double_click()
-                    click_display_counter = 20
-                    click_type_text = "DOUBLE CLICK!"
-                    print("Double click detected!")
+                    action_display_counter = 20
+                    action_text = "DOUBLE CLICK"
+                    print("Double click!")
+                
+                # Copy
+                if gesture_detector.detect_copy(
+                    hands_data['Left'],
+                    config.COPY_THRESHOLD
+                ):
+                    mouse_controller.copy()
+                    action_display_counter = 20
+                    action_text = "COPY (Ctrl+C)"
+                    print("Copy!")
+                
+                # Paste
+                if gesture_detector.detect_paste(
+                    hands_data['Left'],
+                    config.PASTE_THRESHOLD
+                ):
+                    mouse_controller.paste()
+                    action_display_counter = 20
+                    action_text = "PASTE (Ctrl+V)"
+                    print("Paste!")
             
-            # Display click feedback
-            if click_display_counter > 0:
+            # Display action feedback
+            if action_display_counter > 0:
+                color = (0, 255, 0)
+                if "SCROLL" in action_text:
+                    color = (0, 255, 255) if "UP" in action_text else (255, 100, 0)
+                elif "DRAG" in action_text:
+                    color = (255, 0, 255)
+                elif "DESKTOP" in action_text:
+                    color = (255, 165, 0)
+                elif "COPY" in action_text or "PASTE" in action_text:
+                    color = (0, 200, 255)
+                
                 cv2.putText(
                     frame,
-                    click_type_text,
+                    action_text,
                     (50, 100),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1.5,
-                    (0, 255, 0),
-                    3
-                )
-                click_display_counter -= 1
-            
-            # Display scroll feedback
-            if scroll_display_counter > 0:
-                color = (0, 255, 255) if "UP" in scroll_direction_text else (255, 100, 0)
-                cv2.putText(
-                    frame,
-                    scroll_direction_text,
-                    (50, 150),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1.2,
                     color,
                     3
                 )
-                scroll_display_counter -= 1
+                action_display_counter -= 1
+            
+            # Display drag mode status
+            if gesture_detector.is_drag_active():
+                cv2.putText(
+                    frame,
+                    "DRAG MODE ACTIVE",
+                    (50, 150),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (255, 0, 255),
+                    2
+                )
             
             # Draw landmarks
             if config.SHOW_LANDMARKS:
@@ -155,15 +238,12 @@ def main():
                     2
                 )
             
-            # Display frame
             cv2.imshow("AI CV Gesture Mouse Control", frame)
             
-            # Exit on 'q'
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
     
     finally:
-        # Cleanup
         camera.release()
         hand_tracker.close()
         cv2.destroyAllWindows()

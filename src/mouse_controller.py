@@ -58,3 +58,21 @@ class MouseController:
     
     def scroll_down(self, speed: int):
         pyautogui.scroll(-speed, _pause=False)
+    
+    def copy(self):
+        pyautogui.hotkey('ctrl', 'c', _pause=False)
+    
+    def paste(self):
+        pyautogui.hotkey('ctrl', 'v', _pause=False)
+    
+    def switch_desktop_left(self):
+        pyautogui.hotkey('ctrl', 'win', 'left', _pause=False)
+    
+    def switch_desktop_right(self):
+        pyautogui.hotkey('ctrl', 'win', 'right', _pause=False)
+    
+    def mouse_down(self):
+        pyautogui.mouseDown(_pause=False)
+    
+    def mouse_up(self):
+        pyautogui.mouseUp(_pause=False)
