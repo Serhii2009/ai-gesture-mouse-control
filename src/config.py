@@ -1,0 +1,33 @@
+"""Configuration settings"""
+
+# Camera settings
+CAMERA_INDEX = 0
+CAMERA_WIDTH = 1280
+CAMERA_HEIGHT = 720
+CAMERA_FPS = 30
+
+# Hand tracking settings
+MAX_NUM_HANDS = 2
+MIN_DETECTION_CONFIDENCE = 0.7
+MIN_TRACKING_CONFIDENCE = 0.7
+
+# Mouse control settings
+SMOOTHING_FACTOR = 0.5
+MOUSE_SPEED_MULTIPLIER = 1.5
+SCREEN_PADDING = 100
+
+# Gesture settings - Left hand pinch
+PINCH_THRESHOLD = 40.0
+PINCH_HOLD_FRAMES = 2
+PINCH_RELEASE_THRESHOLD = 60.0
+DOUBLE_CLICK_HOLD_TIME = 2.0
+
+# Gesture settings - Right hand scroll
+SCROLL_UP_THRESHOLD = 45.0
+SCROLL_DOWN_THRESHOLD = 45.0
+SCROLL_SPEED = 15
+SCROLL_SMOOTHING_FRAMES = 5
+
+# Visual settings
+SHOW_LANDMARKS = True
+SHOW_FPS = True
